@@ -6,6 +6,7 @@ package gsession
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -14,7 +15,7 @@ func TestMemoryStore(t *testing.T) {
 	id := uuid.New().String()
 	var store *MemoryStore
 	t.Run("create memory store", func(t *testing.T) {
-		store = NewMemoryStore()
+		store = NewMemoryStore(10)
 		if store == nil {
 			t.Fatal("memory store create error")
 		}
@@ -27,7 +28,7 @@ func TestFileStore(t *testing.T) {
 	var store *FileStore
 	var err error
 	t.Run("create file store", func(t *testing.T) {
-		store = NewFileStore("")
+		store = NewFileStore("", 10)
 		if err != nil {
 			t.Fatal("file store create error")
 		}
@@ -43,7 +44,7 @@ func testStore(store Store, id string, t *testing.T) {
 	var ses *Session
 
 	t.Run("create session record", func(t *testing.T) {
-		err = store.Create(id)
+		err = store.Create(id, time.Minute*time.Duration(1440))
 		if err != nil {
 			t.Error("create session record: ", err)
 		}
