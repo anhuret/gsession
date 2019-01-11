@@ -4,6 +4,8 @@
 package gsession
 
 import (
+	"encoding/hex"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -38,8 +40,8 @@ func TestFileStore(t *testing.T) {
 }
 
 func testStore(store Store, id string, t *testing.T) {
-	key := "user"
-	value := "ruslan"
+	key := random(10)
+	value := random(10)
 	var err error
 	var ses *Session
 
@@ -101,4 +103,12 @@ func testStore(store Store, id string, t *testing.T) {
 			t.Error("delete session record: ", err)
 		}
 	})
+}
+
+func random(n int) string {
+	bts := make([]byte, n)
+	if _, err := rand.Read(bts); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(bts)
 }

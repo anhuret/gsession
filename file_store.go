@@ -157,7 +157,7 @@ func decGob(bts []byte, res interface{}) error {
 	return nil
 }
 
-// Vacuum cleans deleted records every nth minutes.
+// Vacuum runs GC every nth minutes.
 // Takes interval in minutes as int.
 func (s *FileStore) vacuum(d int) {
 	if d == 0 {
