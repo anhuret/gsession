@@ -4,17 +4,16 @@
 package gsession
 
 import (
-	"encoding/hex"
-	"math/rand"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 func TestMemoryStore(t *testing.T) {
-	id := uuid.New().String()
 	var store *MemoryStore
 	t.Run("create memory store", func(t *testing.T) {
 		store = NewMemoryStore(10)
@@ -22,93 +21,108 @@ func TestMemoryStore(t *testing.T) {
 			t.Fatal("memory store create error")
 		}
 	})
-	testStore(store, id, t)
+	t.Run("memory store crud", func(t *testing.T) {
+		err := testStore(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestFileStore(t *testing.T) {
-	id := uuid.New().String()
 	var store *FileStore
-	var err error
 	t.Run("create file store", func(t *testing.T) {
 		store = NewFileStore("", 10)
-		if err != nil {
+		if store == nil {
 			t.Fatal("file store create error")
 		}
 	})
-	testStore(store, id, t)
+	t.Run("file store crud", func(t *testing.T) {
+		err := testStore(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 	os.RemoveAll("session")
 }
 
-func testStore(store Store, id string, t *testing.T) {
-	key := random(10)
-	value := random(10)
+func testStore(store Store) error {
+	var wg sync.WaitGroup
+	rounds := 100
+	wg.Add(rounds)
+	erc := make(chan error, 1)
+	done := make(chan bool, 1)
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	for i := 1; i < rounds+1; i++ {
+		go func() {
+			defer wg.Done()
+			err := testCrud(store)
+			if err != nil {
+				erc <- err
+			}
+		}()
+	}
+	select {
+	case <-done:
+		return nil
+	case err := <-erc:
+		return err
+	}
+}
+
+func testCrud(store Store) error {
+	id := uuid.New().String()
+	key := uuid.New().String()
+	value := uuid.New().String()
 	var err error
 	var ses *Session
 
-	t.Run("create session record", func(t *testing.T) {
-		err = store.Create(id, time.Minute*time.Duration(1440))
-		if err != nil {
-			t.Error("create session record: ", err)
-		}
-	})
-
-	t.Run("read session record", func(t *testing.T) {
-		ses, err = store.Read(id)
-		if err != nil {
-			t.Error("read session record: ", err)
-		}
-	})
-
-	t.Run("update session record", func(t *testing.T) {
-		err = store.Update(id, func(s *Session) {
-			s.Token = value
-		})
-		if err != nil {
-			t.Error("update session record: ", err)
-		}
-	})
-
-	t.Run("set session data", func(t *testing.T) {
-		err = store.Update(id, func(s *Session) {
-			s.Data[key] = value
-		})
-		if err != nil {
-			t.Error("set session data: ", err)
-		}
-	})
-
-	t.Run("get session data", func(t *testing.T) {
-		ses, err = store.Read(id)
-		if err != nil {
-			t.Error("get session data: ", err)
-		}
-		v := ses.Data[key]
-		if v != value {
-			t.Error("session data does not match")
-		}
-	})
-
-	t.Run("delete session data", func(t *testing.T) {
-		err = store.Update(id, func(s *Session) {
-			delete(s.Data, key)
-		})
-		if err != nil {
-			t.Error("delete session data: ", err)
-		}
-	})
-
-	t.Run("delete session record", func(t *testing.T) {
-		err = store.Delete(id)
-		if err != nil {
-			t.Error("delete session record: ", err)
-		}
-	})
-}
-
-func random(n int) string {
-	bts := make([]byte, n)
-	if _, err := rand.Read(bts); err != nil {
-		return ""
+	err = store.Create(id, time.Minute*time.Duration(1440))
+	if err != nil {
+		return errors.Wrap(err, "create session record")
 	}
-	return hex.EncodeToString(bts)
+
+	ses, err = store.Read(id)
+	if err != nil {
+		return errors.Wrap(err, "read session record")
+	}
+
+	err = store.Update(id, func(s *Session) {
+		s.Token = value
+	})
+	if err != nil {
+		return errors.Wrap(err, "update session record")
+	}
+
+	err = store.Update(id, func(s *Session) {
+		s.Data[key] = value
+	})
+	if err != nil {
+		return errors.Wrap(err, "set session data")
+	}
+
+	ses, err = store.Read(id)
+	if err != nil {
+		return errors.Wrap(err, "get session data")
+	}
+	v := ses.Data[key]
+	if v != value {
+		return errors.Wrap(err, "session data does not match")
+	}
+
+	err = store.Update(id, func(s *Session) {
+		delete(s.Data, key)
+	})
+	if err != nil {
+		return errors.Wrap(err, "delete session data")
+	}
+
+	err = store.Delete(id)
+	if err != nil {
+		return errors.Wrap(err, "delete session record")
+	}
+	return nil
 }

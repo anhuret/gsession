@@ -6,11 +6,11 @@ package gsession
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 // Manager type
