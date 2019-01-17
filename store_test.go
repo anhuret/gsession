@@ -48,7 +48,7 @@ func TestFileStore(t *testing.T) {
 
 func testStore(store Store) error {
 	var wg sync.WaitGroup
-	rounds := 100
+	rounds := 1000
 	wg.Add(rounds)
 	erc := make(chan error, 1)
 	done := make(chan bool, 1)
@@ -59,7 +59,7 @@ func testStore(store Store) error {
 	for i := 1; i < rounds+1; i++ {
 		go func() {
 			defer wg.Done()
-			err := testCrud(store)
+			err := storeCrud(store)
 			if err != nil {
 				erc <- err
 			}
@@ -73,7 +73,7 @@ func testStore(store Store) error {
 	}
 }
 
-func testCrud(store Store) error {
+func storeCrud(store Store) error {
 	id := uuid.New().String()
 	key := uuid.New().String()
 	value := uuid.New().String()

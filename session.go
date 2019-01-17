@@ -191,6 +191,19 @@ func (m *Manager) Reset(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// Set sets new session data.
+// Takes HTTP request, key and value.
+func (m *Manager) Set(r *http.Request, k string, v string) error {
+	id, err := sesctx(r)
+	if err != nil {
+		return err
+	}
+	err = m.store.Update(id, func(ses *Session) {
+		ses.Data[k] = v
+	})
+	return err
+}
+
 // Get returns session data.
 // Takes HTTP request and data key.
 func (m *Manager) Get(r *http.Request, k string) (interface{}, error) {
@@ -206,19 +219,6 @@ func (m *Manager) Get(r *http.Request, k string) (interface{}, error) {
 		return dat, nil
 	}
 	return nil, ErrSessionKeyInvalid
-}
-
-// Set sets new session data.
-// Takes HTTP request, key and value.
-func (m *Manager) Set(r *http.Request, k string, v string) error {
-	id, err := sesctx(r)
-	if err != nil {
-		return err
-	}
-	err = m.store.Update(id, func(ses *Session) {
-		ses.Data[k] = v
-	})
-	return err
 }
 
 // Delete removes session data.
