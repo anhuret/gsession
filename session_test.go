@@ -5,6 +5,8 @@
 package gsession
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,48 +19,72 @@ func TestSession(t *testing.T) {
 	b := uuid.New().String()
 	k := uuid.New().String()
 	v := uuid.New().String()
+	w := uuid.New().String()
 	n := "gsession"
-	m := New(nil, 0, 0)
 	l := "ruslan"
+	key := map[string]string{
+		"key": k,
+	}
+	val := map[string]string{
+		"key": k,
+		"val": v,
+	}
+	m := New(nil, 0, 0)
 
 	h := func(w http.ResponseWriter, r *http.Request) {
+		var p map[string]string
+		if r.Body != nil {
+			err := json.NewDecoder(r.Body).Decode(&p)
+			if err != nil && err != io.EOF {
+				t.Fatal(err)
+			}
+		}
 		switch r.RequestURI {
 		case "/":
 			w.Write([]byte(b))
 		case "/set":
-			err := m.Set(r, k, v)
+			err := m.Set(r, p["key"], p["val"])
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/get":
-			val, err := m.Get(r, k)
+			val, err := m.Get(r, p["key"])
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				if err == ErrSessionKeyInvalid {
+					http.Error(w, err.Error(), http.StatusNoContent)
+					break
+				}
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				break
 			}
 			w.Write([]byte(val.(string)))
 		case "/delete":
-			err := m.Delete(r, k)
+			err := m.Delete(r, p["key"])
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/remove":
 			err := m.Remove(w, r)
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/stoken":
 			err := m.SetToken(r, l)
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/gtoken":
 			tok, err := m.Token(r)
 			if err != nil {
-				http.Error(w, err.Error(), 500)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				break
 			}
 			w.Write([]byte(tok))
+		case "/reset":
+			err := m.Reset(w, r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 		}
 	}
 
@@ -68,27 +94,58 @@ func TestSession(t *testing.T) {
 	t.Run("session crud", func(t *testing.T) {
 		e := httpexpect.New(t, s.URL)
 
+		// New session created. New ID is issued.
 		r := e.GET("/").Expect().Status(http.StatusOK)
-
 		r.Cookies().NotEmpty()
 		c := r.Cookie(n)
 		i := c.Value().Raw()
 
-		e.GET("/set").WithCookie(n, i).Expect().Status(http.StatusOK)
+		// Correct current ID is sent back. No new ID is issued and no cookie set.
+		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().Empty()
 
-		r = e.GET("/get").WithCookie(n, i).Expect().Status(http.StatusOK)
+		// Wrong ID is sent. Session is invalidated. New ID is re-issued and new coockie is set.
+		r = e.GET("/").WithCookie(n, w).Expect().Status(http.StatusOK)
+		r.Cookies().NotEmpty()
+		c = r.Cookie(n)
+		c.Value().NotEqual(i)
+		c.Value().NotEqual(w)
+		i = c.Value().Raw()
+
+		// New ID is sent back. No new ID is issued and no cookie set.
+		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().Empty()
+
+		// Get session data with a key that does not exist
+		e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusNoContent)
+
+		// Set session data
+		e.PUT("/set").WithCookie(n, i).WithJSON(val).Expect().Status(http.StatusOK)
+
+		// Get back session data
+		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
 		r.Body().Equal(v)
 
+		// Delete session key
+		e.PUT("/delete").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
+
+		// Get deleted key
+		e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusNoContent)
+
+		// Set session token
 		e.GET("/stoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+
+		// Get session token
 		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
 		r.Body().Equal(l)
 
-		e.GET("/delete").WithCookie(n, i).Expect().Status(http.StatusOK)
-		e.GET("/get").WithCookie(n, i).Expect().Status(http.StatusInternalServerError)
+		// Remove session record
 		r = e.GET("/remove").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().NotEmpty()
 		r.Cookie(n).Value().NotEqual(i)
-		// Check setting with an old id
+		r.Cookie(n).Value().NotEmpty()
 
+		//fmt.Printf("\n My Value is: %s\n", r.Cookie(n).Value().Raw())
 	})
 
 }
