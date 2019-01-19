@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gavv/httpexpect"
 	"github.com/google/uuid"
@@ -29,9 +30,10 @@ func TestSession(t *testing.T) {
 		"key": k,
 		"val": v,
 	}
-	m := New(nil, 0, 0)
 
-	h := func(w http.ResponseWriter, r *http.Request) {
+	var man *Manager
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
 		var p map[string]string
 		if r.Body != nil {
 			err := json.NewDecoder(r.Body).Decode(&p)
@@ -43,12 +45,12 @@ func TestSession(t *testing.T) {
 		case "/":
 			w.Write([]byte(b))
 		case "/set":
-			err := m.Set(r, p["key"], p["val"])
+			err := man.Set(r, p["key"], p["val"])
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/get":
-			val, err := m.Get(r, p["key"])
+			val, err := man.Get(r, p["key"])
 			if err != nil {
 				if err == ErrSessionKeyInvalid {
 					http.Error(w, err.Error(), http.StatusNoContent)
@@ -59,40 +61,38 @@ func TestSession(t *testing.T) {
 			}
 			w.Write([]byte(val.(string)))
 		case "/delete":
-			err := m.Delete(r, p["key"])
+			err := man.Delete(r, p["key"])
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/remove":
-			err := m.Remove(w, r)
+			err := man.Remove(w, r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/stoken":
-			_, err := m.Token(r, &l)
+			_, err := man.Token(r, &l)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/gtoken":
-			tok, err := m.Token(r, nil)
+			tok, err := man.Token(r, nil)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				break
 			}
 			w.Write([]byte(tok))
 		case "/reset":
-			err := m.Reset(w, r)
+			err := man.Reset(w, r)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		}
 	}
 
-	s := httptest.NewServer(m.Use(http.HandlerFunc(h)))
-	defer s.Close()
+	sessionCrud := func(t *testing.T, u string) {
 
-	t.Run("session crud", func(t *testing.T) {
-		e := httpexpect.New(t, s.URL)
+		e := httpexpect.New(t, u)
 
 		// New session created. New ID is issued.
 		r := e.GET("/").Expect().Status(http.StatusOK)
@@ -150,6 +150,67 @@ func TestSession(t *testing.T) {
 		r = e.GET("/remove").WithCookie(n, i).Expect().Status(http.StatusOK)
 		r.Cookies().NotEmpty()
 		r.Cookie(n).Value().NotEmpty().NotEqual(i)
+
+	}
+
+	t.Run("memory session crud", func(t *testing.T) {
+		man = New(NewMemoryStore(0), 0, 0)
+		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
+		defer s.Close()
+		sessionCrud(t, s.URL)
+	})
+	/*
+		t.Run("file session crud", func(t *testing.T) {
+			man = New(NewFileStore("", 0), 0, 0)
+			s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
+			defer s.Close()
+			sessionCrud(t, s.URL)
+			os.RemoveAll("session")
+		})
+	*/
+	t.Run("memory session expiry", func(t *testing.T) {
+		man = New(nil, 0, 0)
+		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
+		defer s.Close()
+
+		e := httpexpect.New(t, s.URL)
+
+		r := e.GET("/").Expect().Status(http.StatusOK)
+		r.Cookies().NotEmpty()
+		i := r.Cookie(n).Value().NotEmpty().Raw()
+
+		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().Empty()
+
+		err := man.store.Update(i, func(ses *Session) {
+			ses.Expiry = time.Now().AddDate(0, 0, -3)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().NotEmpty()
+		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
+
+		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().Empty()
+
+		e.GET("/stoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+
+		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Body().NotEmpty().Equal(l)
+
+		err = man.store.Update(i, func(ses *Session) {
+			ses.Tstamp = time.Now().Add(-2 * time.Hour)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Body().Empty().NotEqual(l)
+
 	})
 
 }
