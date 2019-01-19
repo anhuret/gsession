@@ -69,12 +69,12 @@ func TestSession(t *testing.T) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/stoken":
-			err := m.SetToken(r, l)
+			_, err := m.Token(r, &l)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/gtoken":
-			tok, err := m.Token(r)
+			tok, err := m.Token(r, nil)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				break

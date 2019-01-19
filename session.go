@@ -148,37 +148,10 @@ func (m *Manager) validate(id string) (sesval, error) {
 	return sesPass, nil
 }
 
-// SetToken sets session token.
-// Takes HTTP request and a token string.
-func (m *Manager) SetToken(r *http.Request, t string) error {
-	id, err := sesctx(r)
-	if err != nil {
-		return err
-	}
-	err = m.store.Update(id, func(ses *Session) {
-		ses.Token = t
-	})
-	return err
-}
-
-// Token gets session token.
-// Takes HTTP request.
-func (m *Manager) Token(r *http.Request) (string, error) {
-	id, err := sesctx(r)
-	if err != nil {
-		return "", err
-	}
-	ses, err := m.store.Read(id)
-	if err != nil {
-		return "", err
-	}
-	return ses.Token, nil
-}
-
 // Set sets new session data.
 // Takes HTTP request, key and value.
 func (m *Manager) Set(r *http.Request, k string, v string) error {
-	id, err := sesctx(r)
+	id, err := sesCtx(r)
 	if err != nil {
 		return err
 	}
@@ -191,7 +164,7 @@ func (m *Manager) Set(r *http.Request, k string, v string) error {
 // Get returns session data.
 // Takes HTTP request and data key.
 func (m *Manager) Get(r *http.Request, k string) (interface{}, error) {
-	id, err := sesctx(r)
+	id, err := sesCtx(r)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +181,7 @@ func (m *Manager) Get(r *http.Request, k string) (interface{}, error) {
 // Delete removes session data.
 // Takes HTTP request and key.
 func (m *Manager) Delete(r *http.Request, k string) error {
-	id, err := sesctx(r)
+	id, err := sesCtx(r)
 	if err != nil {
 		return err
 	}
@@ -218,10 +191,36 @@ func (m *Manager) Delete(r *http.Request, k string) error {
 	return err
 }
 
+// Token sets or gets session token.
+// Takes HTTP request and a token string pointer.
+// Returns current token or error.
+// Pass nil to get the current token.
+// Pass string pointer to set a new token.
+func (m *Manager) Token(r *http.Request, t *string) (string, error) {
+	id, err := sesCtx(r)
+	if err != nil {
+		return "", err
+	}
+	if t == nil {
+		ses, err := m.store.Read(id)
+		if err != nil {
+			return "", err
+		}
+		return ses.Token, nil
+	}
+	err = m.store.Update(id, func(ses *Session) {
+		ses.Token = *t
+	})
+	if err != nil {
+		return "", err
+	}
+	return *t, nil
+}
+
 // Remove deletes existing session record. Generates new session ID.
 // Takes HTTP request and response.
 func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
-	id, err := sesctx(r)
+	id, err := sesCtx(r)
 	if err != nil {
 		return err
 	}
@@ -240,7 +239,7 @@ func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 
 // Reset generates new session ID. Keeps old session data.
 func (m *Manager) Reset(w http.ResponseWriter, r *http.Request) error {
-	id, err := sesctx(r)
+	id, err := sesCtx(r)
 	if err != nil {
 		return err
 	}
@@ -271,7 +270,7 @@ func (m *Manager) putCookie(w http.ResponseWriter, id string) {
 }
 
 // Returns session ID from request context.
-func sesctx(r *http.Request) (string, error) {
+func sesCtx(r *http.Request) (string, error) {
 	ctx := r.Context().Value(sesID)
 	if ctx == nil {
 		return "", ErrSessionNilContext
