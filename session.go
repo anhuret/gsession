@@ -237,7 +237,8 @@ func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// Reset generates new session ID. Keeps old session data.
+// Reset generates new session ID. Keeps old session data if false is given for token reset.
+// Set third parameter to true to get Token reset and re-touch Tstamp
 func (m *Manager) Reset(w http.ResponseWriter, r *http.Request, t bool) error {
 	id, err := sesCtx(r)
 	if err != nil {
