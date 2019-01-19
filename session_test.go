@@ -120,6 +120,17 @@ func TestSession(t *testing.T) {
 
 		// Get back session data
 		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
+		r.Cookies().Empty()
+		r.Body().NotEmpty().Equal(v)
+
+		// Reset session and generate new ID
+		r = e.GET("/reset").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().NotEmpty()
+		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
+
+		// Get back session data after reset
+		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
+		r.Cookies().Empty()
 		r.Body().NotEmpty().Equal(v)
 
 		// Delete session key

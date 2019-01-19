@@ -175,22 +175,6 @@ func (m *Manager) Token(r *http.Request) (string, error) {
 	return ses.Token, nil
 }
 
-// Reset updates session absolute expiry time stamp.
-func (m *Manager) Reset(w http.ResponseWriter, r *http.Request) error {
-	id, err := sesctx(r)
-	if err != nil {
-		return err
-	}
-	err = m.store.Update(id, func(ses *Session) {
-		ses.Expiry = time.Now().Add(m.expiry)
-	})
-	if err != nil {
-		return err
-	}
-	m.putCookie(w, id)
-	return nil
-}
-
 // Set sets new session data.
 // Takes HTTP request, key and value.
 func (m *Manager) Set(r *http.Request, k string, v string) error {
@@ -234,7 +218,7 @@ func (m *Manager) Delete(r *http.Request, k string) error {
 	return err
 }
 
-// Remove removes existing session record.
+// Remove deletes existing session record. Generates new session ID.
 // Takes HTTP request and response.
 func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 	id, err := sesctx(r)
@@ -254,17 +238,35 @@ func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// Reset generates new session ID. Keeps old session data.
+func (m *Manager) Reset(w http.ResponseWriter, r *http.Request) error {
+	id, err := sesctx(r)
+	if err != nil {
+		return err
+	}
+	osd, err := m.store.Read(id)
+	if err != nil {
+		return err
+	}
+	id = uuid.New().String()
+	err = m.store.Create(id, m.expiry)
+	if err != nil {
+		return err
+	}
+	err = m.store.Update(id, func(ses *Session) {
+		*ses = *osd
+	})
+	if err != nil {
+		return err
+	}
+	m.putCookie(w, id)
+	return nil
+}
+
 // Put cookie in response.
 func (m *Manager) putCookie(w http.ResponseWriter, id string) {
 	exp := time.Now().Add(m.expiry)
 	jar := http.Cookie{Name: m.name, Value: id, Expires: exp, Path: "/"}
-	http.SetCookie(w, &jar)
-}
-
-// Remove cookie by invalidating it.
-func (m *Manager) remCookie(w http.ResponseWriter) {
-	exp := time.Now()
-	jar := http.Cookie{Name: m.name, Value: "", Expires: exp}
 	http.SetCookie(w, &jar)
 }
 
