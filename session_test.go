@@ -83,7 +83,7 @@ func TestSession(t *testing.T) {
 			}
 			w.Write([]byte(tok))
 		case "/reset":
-			err := man.Reset(w, r)
+			err := man.Reset(w, r, false)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}

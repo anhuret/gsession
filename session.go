@@ -238,7 +238,7 @@ func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 }
 
 // Reset generates new session ID. Keeps old session data.
-func (m *Manager) Reset(w http.ResponseWriter, r *http.Request) error {
+func (m *Manager) Reset(w http.ResponseWriter, r *http.Request, t bool) error {
 	id, err := sesCtx(r)
 	if err != nil {
 		return err
@@ -251,6 +251,10 @@ func (m *Manager) Reset(w http.ResponseWriter, r *http.Request) error {
 	err = m.store.Create(id, m.expiry)
 	if err != nil {
 		return err
+	}
+	if t {
+		osd.Token = ""
+		osd.Tstamp = time.Now()
 	}
 	err = m.store.Update(id, func(ses *Session) {
 		*ses = *osd
