@@ -108,16 +108,21 @@ func (m *Manager) register(w http.ResponseWriter, r *http.Request) (string, erro
 		if err != nil {
 			return "", err
 		}
-		if val == sesPass || val == sesIdle {
+		if val == sesPass {
 			err = m.store.Update(id, func(ses *Session) {
 				ses.Tstamp = time.Now()
-				if val == sesIdle {
-					ses.Token = ""
-				}
 			})
 			if err != nil {
 				return "", err
 			}
+			return id, nil
+		}
+		if val == sesIdle {
+			id, err = m.reset(w, r, id, true)
+			if err != nil {
+				return "", err
+			}
+			m.putCookie(w, id)
 			return id, nil
 		}
 	}
@@ -239,19 +244,15 @@ func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 
 // Reset generates new session ID. Keeps old session data if false is given for token reset.
 // Set third parameter to true to get Token reset and re-touch Tstamp
-func (m *Manager) Reset(w http.ResponseWriter, r *http.Request, t bool) error {
-	id, err := sesCtx(r)
-	if err != nil {
-		return err
-	}
+func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, t bool) (string, error) {
 	osd, err := m.store.Read(id)
 	if err != nil {
-		return err
+		return "", err
 	}
 	id = uuid.New().String()
 	err = m.store.Create(id, m.expiry)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if t {
 		osd.Token = ""
@@ -261,10 +262,9 @@ func (m *Manager) Reset(w http.ResponseWriter, r *http.Request, t bool) error {
 		*ses = *osd
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
-	m.putCookie(w, id)
-	return nil
+	return id, nil
 }
 
 // Put cookie in response.

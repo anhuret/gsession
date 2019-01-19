@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -82,11 +83,6 @@ func TestSession(t *testing.T) {
 				break
 			}
 			w.Write([]byte(tok))
-		case "/reset":
-			err := man.Reset(w, r, false)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
 		}
 	}
 
@@ -123,16 +119,6 @@ func TestSession(t *testing.T) {
 		r.Cookies().Empty()
 		r.Body().NotEmpty().Equal(v)
 
-		// Reset session and generate new ID
-		r = e.GET("/reset").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().NotEmpty()
-		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
-
-		// Get back session data after reset
-		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
-		r.Cookies().Empty()
-		r.Body().NotEmpty().Equal(v)
-
 		// Delete session key
 		e.PUT("/delete").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
 
@@ -159,15 +145,15 @@ func TestSession(t *testing.T) {
 		defer s.Close()
 		sessionCrud(t, s.URL)
 	})
-	/*
-		t.Run("file session crud", func(t *testing.T) {
-			man = New(NewFileStore("", 0), 0, 0)
-			s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
-			defer s.Close()
-			sessionCrud(t, s.URL)
-			os.RemoveAll("session")
-		})
-	*/
+
+	t.Run("file session crud", func(t *testing.T) {
+		man = New(NewFileStore("", 0), 0, 0)
+		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
+		defer s.Close()
+		sessionCrud(t, s.URL)
+		os.RemoveAll("session")
+	})
+
 	t.Run("memory session expiry", func(t *testing.T) {
 		man = New(nil, 0, 0)
 		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
@@ -209,6 +195,8 @@ func TestSession(t *testing.T) {
 		}
 
 		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().NotEmpty()
+		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
 		r.Body().Empty().NotEqual(l)
 
 	})
