@@ -245,7 +245,12 @@ func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	m.remCookie(w)
+	id = uuid.New().String()
+	err = m.store.Create(id, m.expiry)
+	if err != nil {
+		return err
+	}
+	m.putCookie(w, id)
 	return nil
 }
 

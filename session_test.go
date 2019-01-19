@@ -97,8 +97,7 @@ func TestSession(t *testing.T) {
 		// New session created. New ID is issued.
 		r := e.GET("/").Expect().Status(http.StatusOK)
 		r.Cookies().NotEmpty()
-		c := r.Cookie(n)
-		i := c.Value().Raw()
+		i := r.Cookie(n).Value().NotEmpty().Raw()
 
 		// Correct current ID is sent back. No new ID is issued and no cookie set.
 		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
@@ -107,10 +106,7 @@ func TestSession(t *testing.T) {
 		// Wrong ID is sent. Session is invalidated. New ID is re-issued and new coockie is set.
 		r = e.GET("/").WithCookie(n, w).Expect().Status(http.StatusOK)
 		r.Cookies().NotEmpty()
-		c = r.Cookie(n)
-		c.Value().NotEqual(i)
-		c.Value().NotEqual(w)
-		i = c.Value().Raw()
+		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).NotEqual(w).Raw()
 
 		// New ID is sent back. No new ID is issued and no cookie set.
 		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
@@ -124,7 +120,7 @@ func TestSession(t *testing.T) {
 
 		// Get back session data
 		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
-		r.Body().Equal(v)
+		r.Body().NotEmpty().Equal(v)
 
 		// Delete session key
 		e.PUT("/delete").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
@@ -137,15 +133,12 @@ func TestSession(t *testing.T) {
 
 		// Get session token
 		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Body().Equal(l)
+		r.Body().NotEmpty().Equal(l)
 
 		// Remove session record
 		r = e.GET("/remove").WithCookie(n, i).Expect().Status(http.StatusOK)
 		r.Cookies().NotEmpty()
-		r.Cookie(n).Value().NotEqual(i)
-		r.Cookie(n).Value().NotEmpty()
-
-		//fmt.Printf("\n My Value is: %s\n", r.Cookie(n).Value().Raw())
+		r.Cookie(n).Value().NotEmpty().NotEqual(i)
 	})
 
 }
