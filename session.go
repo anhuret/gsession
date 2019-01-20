@@ -69,10 +69,10 @@ const (
 // New returns new session manager
 func New(store Store, expiry, idle time.Duration) *Manager {
 	if expiry == 0 {
-		expiry = time.Minute * time.Duration(1440)
+		expiry = time.Hour * 24
 	}
 	if idle == 0 {
-		idle = time.Minute * time.Duration(60)
+		idle = time.Hour * 1
 	}
 	if store == nil {
 		store = NewMemoryStore(0)
@@ -144,11 +144,15 @@ func (m *Manager) validate(id string) (sesval, error) {
 		}
 		return sesError, err
 	}
-	if time.Now().After(ses.Expiry) {
-		return sesExpired, nil
+	if m.expiry > 0 {
+		if time.Now().After(ses.Expiry) {
+			return sesExpired, nil
+		}
 	}
-	if time.Now().After(ses.Tstamp.Add(m.idle)) {
-		return sesIdle, nil
+	if m.idle > 0 {
+		if time.Now().After(ses.Tstamp.Add(m.idle)) {
+			return sesIdle, nil
+		}
 	}
 	return sesPass, nil
 }
