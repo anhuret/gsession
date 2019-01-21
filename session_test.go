@@ -154,7 +154,7 @@ func TestSession(t *testing.T) {
 		os.RemoveAll("session")
 	})
 
-	t.Run("memory session expiry", func(t *testing.T) {
+	t.Run("session expiry", func(t *testing.T) {
 		man = New(nil, 0, 0)
 		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
 		defer s.Close()
@@ -198,6 +198,47 @@ func TestSession(t *testing.T) {
 		r.Cookies().NotEmpty()
 		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
 		r.Body().Empty().NotEqual(l)
+
+	})
+
+	t.Run("session expiry disable", func(t *testing.T) {
+		man = New(nil, -1, -1)
+		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
+		defer s.Close()
+
+		e := httpexpect.New(t, s.URL)
+
+		r := e.GET("/").Expect().Status(http.StatusOK)
+		r.Cookies().NotEmpty()
+		i := r.Cookie(n).Value().NotEmpty().Raw()
+
+		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().Empty()
+
+		err := man.store.Update(i, func(ses *Session) {
+			ses.Expiry = time.Now().AddDate(0, 0, -3)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().Empty()
+
+		e.GET("/stoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Body().NotEmpty().Equal(l)
+
+		err = man.store.Update(i, func(ses *Session) {
+			ses.Tstamp = time.Now().Add(-2 * time.Hour)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Cookies().Empty()
+		r.Body().NotEmpty().Equal(l)
 
 	})
 
