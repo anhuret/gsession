@@ -272,7 +272,7 @@ func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, zero 
 // Put writes new cookie to response
 func (m *Manager) putCookie(w http.ResponseWriter, id string) {
 	exp := time.Now().Add(m.expiry)
-	jar := http.Cookie{Name: m.name, Value: id, Expires: exp, Path: "/"}
+	jar := http.Cookie{Name: m.name, Value: id, Expires: exp, Path: "/", HttpOnly: true}
 	http.SetCookie(w, &jar)
 }
 

@@ -1,6 +1,6 @@
-// Copyright (c), Ruslan Sendecky. All rights reserved.
-// Use of this source code is governed by the MIT license.
-// See the LICENSE file in the project root for more information.
+// Copyright (c), Ruslan Sendecky. All rights reserved
+// Use of this source code is governed by the MIT license
+// See the LICENSE file in the project root for more information
 package gsession
 
 import (
