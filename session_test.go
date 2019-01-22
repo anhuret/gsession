@@ -51,7 +51,7 @@ func TestSession(t *testing.T) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		case "/get":
-			val, err := man.Get(r, p["key"])
+			s, err := man.Get(r, p["key"])
 			if err != nil {
 				if err == ErrSessionKeyInvalid {
 					http.Error(w, err.Error(), http.StatusNoContent)
@@ -60,7 +60,7 @@ func TestSession(t *testing.T) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				break
 			}
-			w.Write([]byte(val.(string)))
+			w.Write([]byte(s.(string)))
 		case "/delete":
 			err := man.Delete(r, p["key"])
 			if err != nil {
@@ -86,160 +86,100 @@ func TestSession(t *testing.T) {
 		}
 	}
 
-	sessionCrud := func(t *testing.T, u string) {
-
+	sessionTest := func(t *testing.T, u string) {
 		e := httpexpect.New(t, u)
 
 		// New session created. New ID is issued.
-		r := e.GET("/").Expect().Status(http.StatusOK)
-		r.Cookies().NotEmpty()
-		i := r.Cookie(n).Value().NotEmpty().Raw()
+		i := e.GET("/").Expect().Status(http.StatusOK).Cookie(n).Value().NotEmpty().Raw()
 
 		// Correct current ID is sent back. No new ID is issued and no cookie set.
-		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().Empty()
+		e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK).Cookies().Empty()
 
 		// Wrong ID is sent. Session is invalidated. New ID is re-issued and new coockie is set.
-		r = e.GET("/").WithCookie(n, w).Expect().Status(http.StatusOK)
-		r.Cookies().NotEmpty()
+		r := e.GET("/").WithCookie(n, w).Expect().Status(http.StatusOK)
 		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).NotEqual(w).Raw()
 
-		// New ID is sent back. No new ID is issued and no cookie set.
-		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().Empty()
+		// New ID is sent back.
+		e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK).Cookies().Empty()
 
 		// Get session data with a key that does not exist
-		e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusNoContent)
+		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusNoContent)
+		r.Body().Empty()
 
 		// Set session data
 		e.PUT("/set").WithCookie(n, i).WithJSON(val).Expect().Status(http.StatusOK)
 
 		// Get back session data
 		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
-		r.Cookies().Empty()
 		r.Body().NotEmpty().Equal(v)
 
 		// Delete session key
 		e.PUT("/delete").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
 
 		// Get deleted key
-		e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusNoContent)
+		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusNoContent)
+		r.Body().Empty()
 
 		// Set session token
 		e.GET("/stoken").WithCookie(n, i).Expect().Status(http.StatusOK)
 
 		// Get session token
+		e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK).Body().NotEmpty().Equal(l)
+
+		// Set session data
+		e.PUT("/set").WithCookie(n, i).WithJSON(val).Expect().Status(http.StatusOK)
+
+		// Move expiry back in time
+		err := man.store.Update(i, func(ses *Session) {
+			ses.Expiry = time.Now().AddDate(0, 0, -3)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Trigger expiry and regenerate ID. Session data is cleared
+		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
+		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
+		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusNoContent)
+		r.Body().Empty()
+
+		// Set new token and session data
+		e.GET("/stoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+		e.PUT("/set").WithCookie(n, i).WithJSON(val).Expect().Status(http.StatusOK)
+
+		// Move idle back in time
+		err = man.store.Update(i, func(ses *Session) {
+			ses.Tstamp = time.Now().Add(-2 * time.Hour)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// New ID generated. Token is cleard. Sesion data retained.
 		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Body().NotEmpty().Equal(l)
+		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
+		r.Body().Empty()
+		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
+		r.Body().NotEmpty().Equal(v)
 
 		// Remove session record
 		r = e.GET("/remove").WithCookie(n, i).Expect().Status(http.StatusOK)
 		r.Cookies().NotEmpty()
 		r.Cookie(n).Value().NotEmpty().NotEqual(i)
-
 	}
 
-	t.Run("memory session crud", func(t *testing.T) {
+	t.Run("memory store", func(t *testing.T) {
 		man = New(NewMemoryStore(0), 0, 0)
 		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
 		defer s.Close()
-		sessionCrud(t, s.URL)
+		sessionTest(t, s.URL)
 	})
 
-	t.Run("file session crud", func(t *testing.T) {
+	t.Run("file store", func(t *testing.T) {
 		man = New(NewFileStore("", 0), 0, 0)
 		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
 		defer s.Close()
-		sessionCrud(t, s.URL)
+		sessionTest(t, s.URL)
 		os.RemoveAll("session")
 	})
-
-	t.Run("session expiry", func(t *testing.T) {
-		man = New(nil, 0, 0)
-		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
-		defer s.Close()
-
-		e := httpexpect.New(t, s.URL)
-
-		r := e.GET("/").Expect().Status(http.StatusOK)
-		r.Cookies().NotEmpty()
-		i := r.Cookie(n).Value().NotEmpty().Raw()
-
-		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().Empty()
-
-		err := man.store.Update(i, func(ses *Session) {
-			ses.Expiry = time.Now().AddDate(0, 0, -3)
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().NotEmpty()
-		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
-
-		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().Empty()
-
-		e.GET("/stoken").WithCookie(n, i).Expect().Status(http.StatusOK)
-
-		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Body().NotEmpty().Equal(l)
-
-		err = man.store.Update(i, func(ses *Session) {
-			ses.Tstamp = time.Now().Add(-2 * time.Hour)
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().NotEmpty()
-		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
-		r.Body().Empty().NotEqual(l)
-
-	})
-
-	t.Run("session expiry disable", func(t *testing.T) {
-		man = New(nil, -1, -1)
-		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
-		defer s.Close()
-
-		e := httpexpect.New(t, s.URL)
-
-		r := e.GET("/").Expect().Status(http.StatusOK)
-		r.Cookies().NotEmpty()
-		i := r.Cookie(n).Value().NotEmpty().Raw()
-
-		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().Empty()
-
-		err := man.store.Update(i, func(ses *Session) {
-			ses.Expiry = time.Now().AddDate(0, 0, -3)
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		r = e.GET("/").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().Empty()
-
-		e.GET("/stoken").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Body().NotEmpty().Equal(l)
-
-		err = man.store.Update(i, func(ses *Session) {
-			ses.Tstamp = time.Now().Add(-2 * time.Hour)
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
-		r.Cookies().Empty()
-		r.Body().NotEmpty().Equal(l)
-
-	})
-
 }
