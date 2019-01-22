@@ -180,11 +180,7 @@ func (s *FileStore) vacuum(d int) {
 // Removes expired records.
 // Takes interval duration. If 0 supplied, defaults to every 60 minutes.
 func (s *FileStore) expire(tic time.Duration) {
-	if tic == 0 {
-		tic = time.Minute * time.Duration(60)
-	}
-	ticker := time.NewTicker(tic)
-	for range ticker.C {
+	run := func() {
 		err := s.shelf.Update(func(txn *badger.Txn) error {
 			it := txn.NewIterator(badger.DefaultIteratorOptions)
 			for it.Rewind(); it.Valid(); it.Next() {
@@ -211,5 +207,12 @@ func (s *FileStore) expire(tic time.Duration) {
 		if err != nil {
 			log.Println("expire: ", err)
 		}
+	}
+	if tic == 0 {
+		tic = time.Minute * time.Duration(60)
+	}
+	ticker := time.NewTicker(tic)
+	for range ticker.C {
+		run()
 	}
 }

@@ -13,32 +13,25 @@ import (
 	"github.com/pkg/errors"
 )
 
-func TestMemoryStore(t *testing.T) {
-	var store *MemoryStore
-	t.Run("create memory store", func(t *testing.T) {
-		store = NewMemoryStore(10)
-		if store == nil {
+func TestStore(t *testing.T) {
+	var ms *MemoryStore
+	var fs *FileStore
+	t.Run("memory store", func(t *testing.T) {
+		ms = NewMemoryStore(10)
+		if ms == nil {
 			t.Fatal("memory store create error")
 		}
-	})
-	t.Run("memory store crud", func(t *testing.T) {
-		err := testStore(store)
+		err := testStore(ms)
 		if err != nil {
 			t.Fatal(err)
 		}
 	})
-}
-
-func TestFileStore(t *testing.T) {
-	var store *FileStore
-	t.Run("create file store", func(t *testing.T) {
-		store = NewFileStore("", 10)
-		if store == nil {
+	t.Run("file store", func(t *testing.T) {
+		fs = NewFileStore("", 10)
+		if fs == nil {
 			t.Fatal("file store create error")
 		}
-	})
-	t.Run("file store crud", func(t *testing.T) {
-		err := testStore(store)
+		err := testStore(fs)
 		if err != nil {
 			t.Fatal(err)
 		}

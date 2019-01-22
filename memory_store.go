@@ -79,11 +79,7 @@ func (s *MemoryStore) Delete(id string) error {
 // Removes expired records.
 // Takes interval duration. If 0 supplied, defaults to every 60 minutes.
 func (s *MemoryStore) expire(tic time.Duration) {
-	if tic == 0 {
-		tic = time.Minute * time.Duration(60)
-	}
-	ticker := time.NewTicker(tic)
-	for range ticker.C {
+	run := func() {
 		s.Lock()
 		for key, ses := range s.shelf {
 			if time.Now().After(ses.Expiry) {
@@ -91,5 +87,12 @@ func (s *MemoryStore) expire(tic time.Duration) {
 			}
 		}
 		s.Unlock()
+	}
+	if tic == 0 {
+		tic = time.Minute * time.Duration(60)
+	}
+	ticker := time.NewTicker(tic)
+	for range ticker.C {
+		run()
 	}
 }
