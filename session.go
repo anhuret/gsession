@@ -1,6 +1,6 @@
-// Copyright (c), Ruslan Sendecky. All rights reserved.
-// Use of this source code is governed by the MIT license.
-// See the LICENSE file in the project root for more information.
+// Copyright (c), Ruslan Sendecky. All rights reserved
+// Use of this source code is governed by the MIT license
+// See the LICENSE file in the project root for more information
 
 package gsession
 
@@ -64,8 +64,6 @@ const (
 	sesPass
 )
 
-//func init() { log.SetFlags(log.Lshortfile | log.LstdFlags) }
-
 // New returns new session manager
 func New(store Store, expiry, idle time.Duration) *Manager {
 	if expiry == 0 {
@@ -86,7 +84,7 @@ func New(store Store, expiry, idle time.Duration) *Manager {
 }
 
 // Use provides middleware session handler
-func (m *Manager) Use(h http.Handler) http.Handler {
+func (m *Manager) Use(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, err := m.register(w, r)
 		if err != nil {
@@ -94,11 +92,11 @@ func (m *Manager) Use(h http.Handler) http.Handler {
 			return
 		}
 		ctx := context.WithValue(r.Context(), sesID, id)
-		h.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// Register validates and registers new session record.
+// Register validates and registers new session record
 func (m *Manager) register(w http.ResponseWriter, r *http.Request) (string, error) {
 	var id string
 	jar, err := r.Cookie(m.name)
@@ -135,7 +133,7 @@ func (m *Manager) register(w http.ResponseWriter, r *http.Request) (string, erro
 	return id, nil
 }
 
-// Validate checks session record, expiry and idle time.
+// Validate checks session record, expiry and idle time
 func (m *Manager) validate(id string) (sesval, error) {
 	ses, err := m.store.Read(id)
 	if err != nil {
@@ -157,22 +155,22 @@ func (m *Manager) validate(id string) (sesval, error) {
 	return sesPass, nil
 }
 
-// Set sets new session data.
-// Takes HTTP request, key and value.
-func (m *Manager) Set(r *http.Request, k string, v string) error {
+// Set sets new session key/value pair
+// Takes HTTP request, key and value
+func (m *Manager) Set(r *http.Request, key string, val string) error {
 	id, err := sesCtx(r)
 	if err != nil {
 		return err
 	}
 	err = m.store.Update(id, func(ses *Session) {
-		ses.Data[k] = v
+		ses.Data[key] = val
 	})
 	return err
 }
 
-// Get returns session data.
-// Takes HTTP request and data key.
-func (m *Manager) Get(r *http.Request, k string) (interface{}, error) {
+// Get returns session data
+// Takes HTTP request and data key
+func (m *Manager) Get(r *http.Request, key string) (interface{}, error) {
 	id, err := sesCtx(r)
 	if err != nil {
 		return nil, err
@@ -181,36 +179,36 @@ func (m *Manager) Get(r *http.Request, k string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if dat, ok := ses.Data[k]; ok {
+	if dat, ok := ses.Data[key]; ok {
 		return dat, nil
 	}
 	return nil, ErrSessionKeyInvalid
 }
 
-// Delete removes session data.
-// Takes HTTP request and key.
-func (m *Manager) Delete(r *http.Request, k string) error {
+// Delete removes session data
+// Takes HTTP request and key
+func (m *Manager) Delete(r *http.Request, key string) error {
 	id, err := sesCtx(r)
 	if err != nil {
 		return err
 	}
 	err = m.store.Update(id, func(ses *Session) {
-		delete(ses.Data, k)
+		delete(ses.Data, key)
 	})
 	return err
 }
 
-// Token sets or gets session token.
-// Takes HTTP request and a token string pointer.
-// Returns current token or error.
-// Pass nil to get the current token.
-// Pass string pointer to set a new token.
-func (m *Manager) Token(r *http.Request, t *string) (string, error) {
+// Token sets or gets session token
+// Takes HTTP request and a token string pointer
+// Returns current token or error
+// Pass nil to get the current token
+// Pass string pointer to set a new token
+func (m *Manager) Token(r *http.Request, token *string) (string, error) {
 	id, err := sesCtx(r)
 	if err != nil {
 		return "", err
 	}
-	if t == nil {
+	if token == nil {
 		ses, err := m.store.Read(id)
 		if err != nil {
 			return "", err
@@ -218,16 +216,16 @@ func (m *Manager) Token(r *http.Request, t *string) (string, error) {
 		return ses.Token, nil
 	}
 	err = m.store.Update(id, func(ses *Session) {
-		ses.Token = *t
+		ses.Token = *token
 	})
 	if err != nil {
 		return "", err
 	}
-	return *t, nil
+	return *token, nil
 }
 
-// Remove deletes existing session record. Generates new session ID.
-// Takes HTTP request and response.
+// Remove deletes existing session record. Generates new session ID
+// Takes HTTP request and response
 func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 	id, err := sesCtx(r)
 	if err != nil {
@@ -246,9 +244,9 @@ func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// Reset generates new session ID. Keeps old session data if false is given for token reset.
-// Set third parameter to true to get Token reset and re-touch Tstamp
-func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, t bool) (string, error) {
+// Reset generates new session ID. Keeps old session data
+// Set zero parameter to true to reset token to zero and re-touch tstamp
+func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, zero bool) (string, error) {
 	osd, err := m.store.Read(id)
 	if err != nil {
 		return "", err
@@ -258,7 +256,7 @@ func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, t boo
 	if err != nil {
 		return "", err
 	}
-	if t {
+	if zero {
 		osd.Token = ""
 		osd.Tstamp = time.Now()
 	}
@@ -271,14 +269,14 @@ func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, t boo
 	return id, nil
 }
 
-// Put cookie in response.
+// Put writes new cookie to response
 func (m *Manager) putCookie(w http.ResponseWriter, id string) {
 	exp := time.Now().Add(m.expiry)
 	jar := http.Cookie{Name: m.name, Value: id, Expires: exp, Path: "/"}
 	http.SetCookie(w, &jar)
 }
 
-// Returns session ID from request context.
+// Returns session ID from request context
 func sesCtx(r *http.Request) (string, error) {
 	ctx := r.Context().Value(sesID)
 	if ctx == nil {

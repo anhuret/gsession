@@ -1,6 +1,6 @@
-// Copyright (c), Ruslan Sendecky. All rights reserved.
-// Use of this source code is governed by the MIT license.
-// See the LICENSE file in the project root for more information.
+// Copyright (c), Ruslan Sendecky. All rights reserved
+// Use of this source code is governed by the MIT license
+// See the LICENSE file in the project root for more information
 
 package gsession
 
@@ -18,10 +18,10 @@ type FileStore struct {
 	shelf *badger.DB
 }
 
-// NewFileStore creates a new file store.
-// Takes directory path for the database files and ticker period.
-// Ticker sets duration for how often expired sessions are cleaned up.
-// Empty directory string defaults to "session".
+// NewFileStore creates a new file store
+// Takes directory path for the database files and ticker period for GC
+// Ticker sets duration for how often expired sessions are cleaned up
+// Empty directory string defaults to "session"
 func NewFileStore(dir string, tic time.Duration) *FileStore {
 	if dir == "" {
 		dir = "session"
@@ -41,8 +41,8 @@ func NewFileStore(dir string, tic time.Duration) *FileStore {
 	return store
 }
 
-// Create adds a new session entry to the store.
-// Takes a session ID and session expiry duration.
+// Create adds a new session entry to the store
+// Takes a session ID and session expiry duration
 func (s *FileStore) Create(id string, exp time.Duration) (err error) {
 	ses := Session{
 		Expiry: time.Now().Add(exp),
@@ -64,9 +64,9 @@ func (s *FileStore) Create(id string, exp time.Duration) (err error) {
 	return
 }
 
-// Read retrieves Session from store.
-// Takes session ID.
-// If session not found returns ErrSessionNoRecord error.
+// Read retrieves Session from store
+// Takes session ID
+// If session not found returns ErrSessionNoRecord error
 func (s *FileStore) Read(id string) (ses *Session, err error) {
 	err = s.shelf.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(id))
@@ -91,9 +91,9 @@ func (s *FileStore) Read(id string) (ses *Session, err error) {
 	return
 }
 
-// Update runs a function on Session.
-// Takes session ID and a function with Session as parameter.
-// If session not found returns ErrSessionNoRecord error.
+// Update runs a function on Session
+// Takes session ID and a function with Session as parameter
+// If session not found returns ErrSessionNoRecord error
 func (s *FileStore) Update(id string, fn func(*Session)) (err error) {
 	err = s.shelf.Update(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(id))
@@ -122,8 +122,8 @@ func (s *FileStore) Update(id string, fn func(*Session)) (err error) {
 	return
 }
 
-// Delete removes Session from the store.
-// Takes session ID.
+// Delete removes Session from the store
+// Takes session ID
 func (s *FileStore) Delete(id string) (err error) {
 	err = s.shelf.Update(func(txn *badger.Txn) error {
 		err := txn.Delete([]byte(id))
@@ -157,8 +157,8 @@ func decGob(bts []byte, res interface{}) error {
 	return nil
 }
 
-// Vacuum runs GC every nth minutes.
-// Takes interval in minutes as int.
+// Vacuum runs GC every nth minutes
+// Takes interval in minutes as int
 func (s *FileStore) vacuum(d int) {
 	if d == 0 {
 		return
@@ -176,9 +176,9 @@ func (s *FileStore) vacuum(d int) {
 	}
 }
 
-// Expire runs a sweep every tic period.
-// Removes expired records.
-// Takes interval duration. If 0 supplied, defaults to every 60 minutes.
+// Expire runs a sweep every tic period
+// Removes expired records
+// Takes interval duration. If 0 supplied, defaults to every 60 minutes
 func (s *FileStore) expire(tic time.Duration) {
 	run := func() {
 		err := s.shelf.Update(func(txn *badger.Txn) error {
