@@ -23,7 +23,7 @@ type Manager struct {
 
 // Store interface
 type Store interface {
-	Create(string, time.Duration) error
+	Create(string) error
 	Read(string) (*Session, error)
 	Update(string, func(*Session)) error
 	Delete(string) error
@@ -31,7 +31,7 @@ type Store interface {
 
 // Session struct stores session data
 type Session struct {
-	Expiry time.Time
+	Origin time.Time
 	Tstamp time.Time
 	Token  string
 	Data   map[string]interface{}
@@ -73,7 +73,7 @@ func New(store Store, expiry, idle time.Duration) *Manager {
 		idle = time.Hour * 1
 	}
 	if store == nil {
-		store = NewMemoryStore(0)
+		store = NewMemoryStore()
 	}
 	return &Manager{
 		name:   "gsession",
@@ -123,9 +123,15 @@ func (m *Manager) register(w http.ResponseWriter, r *http.Request) (string, erro
 			m.putCookie(w, id)
 			return id, nil
 		}
+		if val == sesExpired {
+			err = m.store.Delete(id)
+			if err != nil {
+				return "", err
+			}
+		}
 	}
 	id = uuid.New().String()
-	err = m.store.Create(id, m.expiry)
+	err = m.store.Create(id)
 	if err != nil {
 		return "", err
 	}
@@ -143,7 +149,7 @@ func (m *Manager) validate(id string) (sesval, error) {
 		return sesError, err
 	}
 	if m.expiry > 0 {
-		if time.Now().After(ses.Expiry) {
+		if time.Now().After(ses.Origin.Add(m.expiry)) {
 			return sesExpired, nil
 		}
 	}
@@ -236,7 +242,7 @@ func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	id = uuid.New().String()
-	err = m.store.Create(id, m.expiry)
+	err = m.store.Create(id)
 	if err != nil {
 		return err
 	}
@@ -252,7 +258,7 @@ func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, zero 
 		return "", err
 	}
 	id = uuid.New().String()
-	err = m.store.Create(id, m.expiry)
+	err = m.store.Create(id)
 	if err != nil {
 		return "", err
 	}

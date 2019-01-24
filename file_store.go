@@ -19,10 +19,9 @@ type FileStore struct {
 }
 
 // NewFileStore creates a new file store
-// Takes directory path for the database files and ticker period for GC
-// Ticker sets duration for how often expired sessions are cleaned up
+// Takes directory path for the database files
 // Empty directory string defaults to "session"
-func NewFileStore(dir string, tic time.Duration) *FileStore {
+func NewFileStore(dir string) *FileStore {
 	if dir == "" {
 		dir = "session"
 	}
@@ -36,16 +35,15 @@ func NewFileStore(dir string, tic time.Duration) *FileStore {
 	store := &FileStore{
 		shelf: db,
 	}
-	go store.vacuum(5)
-	go store.expire(tic)
+	go store.vacuum(time.Hour * 12)
 	return store
 }
 
 // Create adds a new session entry to the store
-// Takes a session ID and session expiry duration
-func (s *FileStore) Create(id string, exp time.Duration) (err error) {
+// Takes a session ID
+func (s *FileStore) Create(id string) (err error) {
 	ses := Session{
-		Expiry: time.Now().Add(exp),
+		Origin: time.Now(),
 		Tstamp: time.Now(),
 		Token:  "",
 		Data:   make(map[string]interface{}),
@@ -159,11 +157,11 @@ func decGob(bts []byte, res interface{}) error {
 
 // Vacuum runs GC every nth minutes
 // Takes interval in minutes as int
-func (s *FileStore) vacuum(d int) {
+func (s *FileStore) vacuum(d time.Duration) {
 	if d == 0 {
 		return
 	}
-	ticker := time.NewTicker(time.Minute * time.Duration(d))
+	ticker := time.NewTicker(d)
 	run := func() {
 	repeat:
 		err := s.shelf.RunValueLogGC(0.5)
@@ -171,47 +169,7 @@ func (s *FileStore) vacuum(d int) {
 			goto repeat
 		}
 	}
-	for range ticker.C {
-		run()
-	}
-}
-
-// Expire runs a sweep every tic period
-// Removes expired records
-// Takes interval duration. If 0 supplied, defaults to every 60 minutes
-func (s *FileStore) expire(tic time.Duration) {
-	run := func() {
-		err := s.shelf.Update(func(txn *badger.Txn) error {
-			it := txn.NewIterator(badger.DefaultIteratorOptions)
-			for it.Rewind(); it.Valid(); it.Next() {
-				item := it.Item()
-				key := item.Key()
-				val, err := item.ValueCopy(nil)
-				if err != nil {
-					return err
-				}
-				ses := new(Session)
-				if err := decGob(val, ses); err != nil {
-					return err
-				}
-				if time.Now().After(ses.Expiry) {
-					err = txn.Delete(key)
-					if err != nil {
-						return err
-					}
-				}
-			}
-			it.Close()
-			return nil
-		})
-		if err != nil {
-			log.Println("expire: ", err)
-		}
-	}
-	if tic == 0 {
-		tic = time.Minute * time.Duration(60)
-	}
-	ticker := time.NewTicker(tic)
+	run()
 	for range ticker.C {
 		run()
 	}

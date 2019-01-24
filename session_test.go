@@ -131,7 +131,7 @@ func TestSession(t *testing.T) {
 
 		// Move expiry back in time
 		err := man.store.Update(i, func(ses *Session) {
-			ses.Expiry = time.Now().AddDate(0, 0, -3)
+			ses.Origin = time.Now().AddDate(0, 0, -3)
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -169,14 +169,14 @@ func TestSession(t *testing.T) {
 	}
 
 	t.Run("memory store", func(t *testing.T) {
-		man = New(NewMemoryStore(0), 0, 0)
+		man = New(NewMemoryStore(), 0, 0)
 		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
 		defer s.Close()
 		sessionTest(t, s.URL)
 	})
 
 	t.Run("file store", func(t *testing.T) {
-		man = New(NewFileStore("", 0), 0, 0)
+		man = New(NewFileStore(""), 0, 0)
 		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
 		defer s.Close()
 		sessionTest(t, s.URL)

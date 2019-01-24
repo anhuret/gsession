@@ -16,23 +16,19 @@ type MemoryStore struct {
 }
 
 // NewMemoryStore creates a new memory store
-// Takes ticker period for GC
-// Ticker sets duration for how often expired sessions are cleaned up
-func NewMemoryStore(tic time.Duration) *MemoryStore {
-	store := &MemoryStore{
+func NewMemoryStore() *MemoryStore {
+	return &MemoryStore{
 		shelf: make(map[string]*Session),
 	}
-	go store.expire(tic)
-	return store
 }
 
 // Create adds a new session entry to the store
-// Takes a session ID and session expiry duration
-func (s *MemoryStore) Create(id string, exp time.Duration) error {
+// Takes a session ID
+func (s *MemoryStore) Create(id string) error {
 	s.Lock()
 	defer s.Unlock()
 	s.shelf[id] = &Session{
-		Expiry: time.Now().Add(exp),
+		Origin: time.Now(),
 		Tstamp: time.Now(),
 		Token:  "",
 		Data:   make(map[string]interface{}),
@@ -73,26 +69,4 @@ func (s *MemoryStore) Delete(id string) error {
 	defer s.Unlock()
 	delete(s.shelf, id)
 	return nil
-}
-
-// Expire runs a sweep every tic period
-// Removes expired records
-// Takes interval duration. If 0 supplied, defaults to every 60 minutes
-func (s *MemoryStore) expire(tic time.Duration) {
-	run := func() {
-		s.Lock()
-		for key, ses := range s.shelf {
-			if time.Now().After(ses.Expiry) {
-				delete(s.shelf, key)
-			}
-		}
-		s.Unlock()
-	}
-	if tic == 0 {
-		tic = time.Minute * time.Duration(60)
-	}
-	ticker := time.NewTicker(tic)
-	for range ticker.C {
-		run()
-	}
 }

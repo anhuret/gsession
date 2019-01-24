@@ -1,13 +1,13 @@
 // Copyright (c), Ruslan Sendecky. All rights reserved
 // Use of this source code is governed by the MIT license
 // See the LICENSE file in the project root for more information
+
 package gsession
 
 import (
 	"os"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -17,9 +17,9 @@ func TestStore(t *testing.T) {
 	var ms *MemoryStore
 	var fs *FileStore
 	t.Run("memory store", func(t *testing.T) {
-		ms = NewMemoryStore(10)
+		ms = NewMemoryStore()
 		if ms == nil {
-			t.Fatal("memory store create error")
+			t.Fatal("memory store error")
 		}
 		err := testStore(ms)
 		if err != nil {
@@ -27,9 +27,9 @@ func TestStore(t *testing.T) {
 		}
 	})
 	t.Run("file store", func(t *testing.T) {
-		fs = NewFileStore("", 10)
+		fs = NewFileStore("")
 		if fs == nil {
-			t.Fatal("file store create error")
+			t.Fatal("file store error")
 		}
 		err := testStore(fs)
 		if err != nil {
@@ -73,7 +73,7 @@ func storeCrud(store Store) error {
 	var err error
 	var ses *Session
 
-	err = store.Create(id, time.Minute*time.Duration(1440))
+	err = store.Create(id)
 	if err != nil {
 		return errors.Wrap(err, "create session record")
 	}
