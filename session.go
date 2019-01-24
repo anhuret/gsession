@@ -23,7 +23,7 @@ type Manager struct {
 
 // Store interface
 type Store interface {
-	Create(string) error
+	Create(string, *Session) error
 	Read(string) (*Session, error)
 	Update(string, func(*Session)) error
 	Delete(string) error
@@ -131,7 +131,7 @@ func (m *Manager) register(w http.ResponseWriter, r *http.Request) (string, erro
 		}
 	}
 	id = uuid.New().String()
-	err = m.store.Create(id)
+	err = m.store.Create(id, nil)
 	if err != nil {
 		return "", err
 	}
@@ -242,7 +242,7 @@ func (m *Manager) Remove(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	id = uuid.New().String()
-	err = m.store.Create(id)
+	err = m.store.Create(id, nil)
 	if err != nil {
 		return err
 	}
@@ -258,7 +258,7 @@ func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, zero 
 		return "", err
 	}
 	id = uuid.New().String()
-	err = m.store.Create(id)
+	err = m.store.Create(id, nil)
 	if err != nil {
 		return "", err
 	}

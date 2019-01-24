@@ -73,7 +73,7 @@ func storeCrud(store Store) error {
 	var err error
 	var ses *Session
 
-	err = store.Create(id)
+	err = store.Create(id, nil)
 	if err != nil {
 		return errors.Wrap(err, "create session record")
 	}

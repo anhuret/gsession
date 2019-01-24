@@ -40,13 +40,27 @@ func NewFileStore(dir string) *FileStore {
 }
 
 // Create adds a new session entry to the store
-// Takes a session ID
-func (s *FileStore) Create(id string) (err error) {
-	ses := Session{
-		Origin: time.Now(),
-		Tstamp: time.Now(),
-		Token:  "",
-		Data:   make(map[string]interface{}),
+// Takes a session ID and Session struct or nil
+// Pass nil to create default session
+// Psss Session pointer to create an entry with pre defined data or overwrite existing
+func (s *FileStore) Create(id string, ses *Session) (err error) {
+	if ses == nil {
+		ses = &Session{
+			Origin: time.Now(),
+			Tstamp: time.Now(),
+			Token:  "",
+			Data:   make(map[string]interface{}),
+		}
+	} else {
+		if ses.Origin.IsZero() {
+			ses.Origin = time.Now()
+		}
+		if ses.Tstamp.IsZero() {
+			ses.Tstamp = time.Now()
+		}
+		if ses.Data == nil {
+			ses.Data = make(map[string]interface{})
+		}
 	}
 	err = s.shelf.Update(func(txn *badger.Txn) error {
 		bts, err := encGob(ses)

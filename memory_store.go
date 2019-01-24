@@ -23,16 +23,32 @@ func NewMemoryStore() *MemoryStore {
 }
 
 // Create adds a new session entry to the store
-// Takes a session ID
-func (s *MemoryStore) Create(id string) error {
-	s.Lock()
+// Takes a session ID and Session struct or nil
+// Pass nil to create default session
+// Psss Session pointer to create an entry with pre defined data or overwrite existing
+func (s *MemoryStore) Create(id string, ses *Session) error {
 	defer s.Unlock()
-	s.shelf[id] = &Session{
-		Origin: time.Now(),
-		Tstamp: time.Now(),
-		Token:  "",
-		Data:   make(map[string]interface{}),
+	if ses == nil {
+		s.Lock()
+		s.shelf[id] = &Session{
+			Origin: time.Now(),
+			Tstamp: time.Now(),
+			Token:  "",
+			Data:   make(map[string]interface{}),
+		}
+		return nil
 	}
+	if ses.Origin.IsZero() {
+		ses.Origin = time.Now()
+	}
+	if ses.Tstamp.IsZero() {
+		ses.Tstamp = time.Now()
+	}
+	if ses.Data == nil {
+		ses.Data = make(map[string]interface{})
+	}
+	s.Lock()
+	s.shelf[id] = ses
 	return nil
 }
 
