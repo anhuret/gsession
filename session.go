@@ -257,22 +257,20 @@ func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, zero 
 	if err != nil {
 		return "", err
 	}
-	id = uuid.New().String()
-	err = m.store.Create(id, nil)
-	if err != nil {
-		return "", err
-	}
+	ni := uuid.New().String()
 	if zero {
 		osd.Token = ""
 		osd.Tstamp = time.Now()
 	}
-	err = m.store.Update(id, func(ses *Session) {
-		*ses = *osd
-	})
+	err = m.store.Create(ni, osd)
 	if err != nil {
 		return "", err
 	}
-	return id, nil
+	err = m.store.Delete(id)
+	if err != nil {
+		return "", err
+	}
+	return ni, nil
 }
 
 // Put writes new cookie to response
