@@ -4,21 +4,22 @@ Very simple Go session management library. Provides memory and filesystem stores
 
 ## Features
 
-* Supports absolute and idle expiry
+* Absolute expiry, regardless of session activity
+* Idle inactivity timeout
+* Renewal timeout when session ID is renewed regardless of the session activity or idle timeout
+* Expiry, idle and renew timeouts can be disabled
 * Uses excellent Badger KV DB for on disk persistance
 
 ## Install
 
-```go
+```
 go get -u github.com/anhuret/gsession
 
 ```
 
-## Why?
+## Go version
 
-Why another Go session manager?\
-This is my humble attempt at learning Go. A session manager seemed like a good choice.\
-Yes, take it with a grain of salt please.
+Built and tested with Go 1.11.4
 
 ## Usage
 
@@ -34,8 +35,8 @@ import (
 func main() {
 	// Create default session manager
 	// Use nil to get default memory store
-	// Use 0 for expiry and idle to get 24H and 1H respectively
-	manager := gs.New(nil, 0, 0)
+	// Use 0 for expiry, idle and renew to get defaults: 24H, 1H and 30M respectively
+	manager := gs.New(nil, 0, 0, 0)
 
 	// Handler function
 	sayHello := func(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +79,7 @@ To use persistent session store with Badger backend
 
 ```go
 // Give it a directory or leave blank to get default "gsession"
-manager := gs.New(gs.NewFileStore("some_directory", 0), 0, 0)
+manager := gs.New(gs.NewFileStore("some_directory", 0), 0, 0, 0)
 ```
 
 ## Test
@@ -89,10 +90,16 @@ Run go test from the project root
 go test -cover
 
 PASS
-coverage: 81.3% of statements
-ok  	github.com/anhuret/gsession	0.465s
+coverage: 83.7% of statements
+ok  	github.com/anhuret/gsession	0.382s
 
 ```
+
+## Why?
+
+Why another Go session manager?\
+This is my humble attempt at learning Go. A session manager seemed like a good choice.\
+Yes, take it with a grain of salt please.
 
 ## License
 
