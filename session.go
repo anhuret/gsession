@@ -16,9 +16,10 @@ import (
 // Manager type
 type Manager struct {
 	name   string
+	store  Store
 	expiry time.Duration
 	idle   time.Duration
-	store  Store
+	renew  time.Duration
 }
 
 // Store interface
@@ -59,28 +60,33 @@ type sesval int
 // Session validation constants
 const (
 	sesError sesval = iota
-	sesExpired
 	sesInvalid
+	sesExpired
 	sesIdle
+	sesRenew
 	sesPass
 )
 
 // New returns new session manager
-func New(store Store, expiry, idle time.Duration) *Manager {
+func New(store Store, expiry, idle, renew time.Duration) *Manager {
+	if store == nil {
+		store = NewMemoryStore()
+	}
 	if expiry == 0 {
 		expiry = time.Hour * 24
 	}
 	if idle == 0 {
 		idle = time.Hour * 1
 	}
-	if store == nil {
-		store = NewMemoryStore()
+	if renew == 0 {
+		renew = time.Minute * 30
 	}
 	man := &Manager{
 		name:   "gsession",
+		store:  store,
 		expiry: expiry,
 		idle:   idle,
-		store:  store,
+		renew:  renew,
 	}
 	man.expire(0, store.Expire)
 	return man
@@ -116,6 +122,14 @@ func (m *Manager) register(w http.ResponseWriter, r *http.Request) (string, erro
 			if err != nil {
 				return "", err
 			}
+			return id, nil
+		}
+		if val == sesRenew {
+			id, err = m.reset(w, r, id, false)
+			if err != nil {
+				return "", err
+			}
+			m.putCookie(w, id)
 			return id, nil
 		}
 		if val == sesIdle {
@@ -159,6 +173,11 @@ func (m *Manager) validate(id string) (sesval, error) {
 	if m.idle > 0 {
 		if time.Now().After(ses.Tstamp.Add(m.idle)) {
 			return sesIdle, nil
+		}
+	}
+	if m.renew > 0 {
+		if time.Now().After(ses.Tstamp.Add(m.renew)) {
+			return sesRenew, nil
 		}
 	}
 	return sesPass, nil

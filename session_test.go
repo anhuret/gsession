@@ -162,6 +162,30 @@ func TestSession(t *testing.T) {
 		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
 		r.Body().NotEmpty().Equal(v)
 
+		// Delete value and check it does not exist
+		e.PUT("/delete").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
+		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusNoContent)
+		r.Body().Empty()
+
+		// Set new token and session value
+		e.GET("/stoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+		e.PUT("/set").WithCookie(n, i).WithJSON(val).Expect().Status(http.StatusOK)
+
+		// Move renew back in time
+		err = man.store.Update(i, func(ses *Session) {
+			ses.Tstamp = time.Now().Add(-45 * time.Minute)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// New ID generated. Session data and token remain intact
+		r = e.GET("/gtoken").WithCookie(n, i).Expect().Status(http.StatusOK)
+		r.Body().NotEmpty().Equal(l)
+		i = r.Cookie(n).Value().NotEmpty().NotEqual(i).Raw()
+		r = e.PUT("/get").WithCookie(n, i).WithJSON(key).Expect().Status(http.StatusOK)
+		r.Body().NotEmpty().Equal(v)
+
 		// Remove session record
 		r = e.GET("/remove").WithCookie(n, i).Expect().Status(http.StatusOK)
 		r.Cookies().NotEmpty()
@@ -169,14 +193,14 @@ func TestSession(t *testing.T) {
 	}
 
 	t.Run("memory store", func(t *testing.T) {
-		man = New(NewMemoryStore(), 0, 0)
+		man = New(NewMemoryStore(), 0, 0, 0)
 		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
 		defer s.Close()
 		sessionTest(t, s.URL)
 	})
 
 	t.Run("file store", func(t *testing.T) {
-		man = New(NewFileStore(""), 0, 0)
+		man = New(NewFileStore(""), 0, 0, 0)
 		s := httptest.NewServer(man.Use(http.HandlerFunc(handler)))
 		defer s.Close()
 		sessionTest(t, s.URL)
