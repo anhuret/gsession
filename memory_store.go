@@ -86,3 +86,16 @@ func (s *MemoryStore) Delete(id string) error {
 	delete(s.shelf, id)
 	return nil
 }
+
+// Expire removes expired records
+// Takes expiration duration
+func (s *MemoryStore) Expire(exp time.Duration) (err error) {
+	s.Lock()
+	for key, ses := range s.shelf {
+		if time.Now().After(ses.Origin.Add(exp)) {
+			delete(s.shelf, key)
+		}
+	}
+	s.Unlock()
+	return
+}

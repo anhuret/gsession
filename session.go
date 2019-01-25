@@ -27,6 +27,7 @@ type Store interface {
 	Read(string) (*Session, error)
 	Update(string, func(*Session)) error
 	Delete(string) error
+	Expire(time.Duration) error
 }
 
 // Session struct stores session data
@@ -75,12 +76,14 @@ func New(store Store, expiry, idle time.Duration) *Manager {
 	if store == nil {
 		store = NewMemoryStore()
 	}
-	return &Manager{
+	man := &Manager{
 		name:   "gsession",
 		expiry: expiry,
 		idle:   idle,
 		store:  store,
 	}
+	man.expire(0, store.Expire)
+	return man
 }
 
 // Use provides middleware session handler
@@ -271,6 +274,34 @@ func (m *Manager) reset(w http.ResponseWriter, r *http.Request, id string, zero 
 		return "", err
 	}
 	return ni, nil
+}
+
+// Runs store Expiry GC every tic period
+// Removes expired records
+// Takes interval duration and store GC function.
+// If 0 supplied, defaults to every 6 hours
+func (m *Manager) expire(tic time.Duration, fn func(exp time.Duration) error) (chan bool, chan error) {
+	if tic == 0 {
+		tic = time.Hour * 6
+	}
+	done := make(chan bool, 1)
+	cerr := make(chan error, 1)
+	go func() {
+		ticker := time.NewTicker(tic)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				err := fn(m.expiry)
+				if err != nil {
+					cerr <- err
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+	return done, cerr
 }
 
 // Put writes new cookie to response

@@ -147,6 +147,35 @@ func (s *FileStore) Delete(id string) (err error) {
 	return
 }
 
+// Expire removes expired records
+// Takes expiration duration
+func (s *FileStore) Expire(exp time.Duration) (err error) {
+	err = s.shelf.Update(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			key := item.Key()
+			val, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			ses := new(Session)
+			if err := decGob(val, ses); err != nil {
+				return err
+			}
+			if time.Now().After(ses.Origin.Add(exp)) {
+				err = txn.Delete(key)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		it.Close()
+		return nil
+	})
+	return
+}
+
 // Encode types to bytes
 func encGob(val interface{}) ([]byte, error) {
 	var buf bytes.Buffer
