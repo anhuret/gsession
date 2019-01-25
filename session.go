@@ -124,6 +124,14 @@ func (m *Manager) register(w http.ResponseWriter, r *http.Request) (string, erro
 			}
 			return id, nil
 		}
+		if val == sesRenew {
+			id, err = m.reset(w, r, id, false)
+			if err != nil {
+				return "", err
+			}
+			m.putCookie(w, id)
+			return id, nil
+		}
 		if val == sesIdle {
 			id, err = m.reset(w, r, id, true)
 			if err != nil {
@@ -165,6 +173,11 @@ func (m *Manager) validate(id string) (sesval, error) {
 	if m.idle > 0 {
 		if time.Now().After(ses.Tstamp.Add(m.idle)) {
 			return sesIdle, nil
+		}
+	}
+	if m.renew > 0 {
+		if time.Now().After(ses.Tstamp.Add(m.renew)) {
+			return sesRenew, nil
 		}
 	}
 	return sesPass, nil
