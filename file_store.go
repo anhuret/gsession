@@ -13,7 +13,7 @@ import (
 	"github.com/dgraph-io/badger"
 )
 
-// FileStore struct.
+// FileStore struct
 type FileStore struct {
 	shelf *badger.DB
 }
@@ -106,7 +106,7 @@ func (s *FileStore) Read(id string) (ses *Session, err error) {
 // Update runs a function on Session
 // Takes session ID and a function with Session as parameter
 // If session not found returns ErrSessionNoRecord error
-func (s *FileStore) Update(id string, fn func(*Session)) (err error) {
+func (s *FileStore) Update(id string, run func(*Session)) (err error) {
 	err = s.shelf.Update(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(id))
 		if err != nil {
@@ -120,7 +120,7 @@ func (s *FileStore) Update(id string, fn func(*Session)) (err error) {
 		if err := decGob(val, ses); err != nil {
 			return err
 		}
-		fn(ses)
+		run(ses)
 		bts, err := encGob(ses)
 		if err != nil {
 			return err
@@ -198,8 +198,8 @@ func decGob(bts []byte, res interface{}) error {
 	return nil
 }
 
-// Vacuum runs GC every nth minutes
-// Takes interval in minutes as int
+// Vacuum runs GC every nth
+// Takes interval as duration
 func (s *FileStore) vacuum(d time.Duration) {
 	if d == 0 {
 		return
@@ -212,7 +212,6 @@ func (s *FileStore) vacuum(d time.Duration) {
 			goto repeat
 		}
 	}
-	run()
 	for range ticker.C {
 		run()
 	}
