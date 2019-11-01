@@ -25,17 +25,18 @@ func NewFileStore(dir string) *FileStore {
 	if dir == "" {
 		dir = "session"
 	}
-	opts := badger.DefaultOptions
-	opts.Dir = dir
-	opts.ValueDir = dir
-	db, err := badger.Open(opts)
+
+	db, err := badger.Open(badger.DefaultOptions(dir))
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	store := &FileStore{
 		shelf: db,
 	}
+
 	go store.vacuum(time.Hour * 12)
+
 	return store
 }
 
