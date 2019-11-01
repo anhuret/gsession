@@ -67,6 +67,12 @@ const (
 	sesPass
 )
 
+// Config struct
+type Config struct {
+	expiry, idle, renew time.Duration
+	cookie              http.Cookie
+}
+
 // New returns new session manager
 func New(store Store, expiry, idle, renew time.Duration) *Manager {
 	if store == nil {
