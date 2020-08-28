@@ -19,7 +19,7 @@ go get -u github.com/anhuret/gsession
 
 ## Go version
 
-Built and tested with Go 1.11.4
+Built and tested with Go 1.14
 
 ## Usage
 
@@ -97,9 +97,7 @@ ok  	github.com/anhuret/gsession	0.382s
 
 ## Why?
 
-Why another Go session manager?\
 This is my humble attempt at learning Go. A session manager seemed like a good choice.\
-Yes, take it with a grain of salt please.
 
 ## License
 
