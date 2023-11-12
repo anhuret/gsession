@@ -10,7 +10,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v4"
 )
 
 // FileStore struct
